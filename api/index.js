@@ -4,12 +4,21 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import { fileURLToPath } from 'url';
-import { query, run, get } from './db.js';
+import mongoose from 'mongoose';
+import connectDB, { Render, Model, Message } from './db.js';
 
 dotenv.config();
 
 const app = express();
+
+// Connect to MongoDB
+// Connect to MongoDB
+let startupError = null;
+connectDB().then(error => {
+    if (error) startupError = error;
+}).catch(e => {
+    startupError = e;
+});
 
 // Middleware
 app.use(cors({
@@ -61,7 +70,7 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/renders', async (req, res) => {
     try {
-        const renders = await query('SELECT * FROM renders ORDER BY "order" ASC, createdAt ASC');
+        const renders = await Render.find().sort({ order: 1, createdAt: 1 });
         res.json(renders);
     } catch (err) {
         console.error('API Error (/api/renders):', err.message);
@@ -71,7 +80,7 @@ app.get('/api/renders', async (req, res) => {
 
 app.get('/api/models', async (req, res) => {
     try {
-        const models = await query('SELECT * FROM models ORDER BY createdAt DESC');
+        const models = await Model.find().sort({ createdAt: -1 });
         res.json(models);
     } catch (err) {
         console.error('API Error (/api/models):', err.message);
@@ -90,16 +99,18 @@ app.post('/api/upload/render', upload.single('image'), async (req, res) => {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        const result = await run(
-            'INSERT INTO renders (title, subtitle, imageUrl, cloudinaryId) VALUES (?, ?, ?, ?)',
-            [title || '', subtitle || '', req.file.path, req.file.filename]
-        );
+        const newRender = new Render({
+            title: title || '',
+            subtitle: subtitle || '',
+            imageUrl: req.file.path,
+            cloudinaryId: req.file.filename
+        });
 
-        const newRender = await get('SELECT * FROM renders WHERE id = ?', [result.id]);
-        res.status(201).json(newRender);
+        const savedRender = await newRender.save();
+        res.status(201).json(savedRender);
     } catch (err) {
         console.error('Render Upload Error:', err);
-        const errorMessage = (err.http_code === 400 && err.message?.includes('size'))
+        const errorMessage = (err.message && err.message.includes('size'))
             ? 'File size too large for Cloudinary (Max 10MB)'
             : (err.message || 'Upload failed');
         res.status(500).json({ error: errorMessage });
@@ -120,22 +131,19 @@ app.post('/api/upload/model', upload.fields([{ name: 'modelFile', maxCount: 1 },
         const modelFile = req.files['modelFile'][0];
         const thumbnailFile = req.files['thumbnailFile'] ? req.files['thumbnailFile'][0] : null;
 
-        const result = await run(
-            'INSERT INTO models (name, fileUrl, cloudinaryId, thumbnailUrl, thumbnailCloudinaryId) VALUES (?, ?, ?, ?, ?)',
-            [
-                name || '',
-                modelFile.path,
-                modelFile.filename,
-                thumbnailFile ? thumbnailFile.path : null, // Store thumbnail URL if uploaded
-                thumbnailFile ? thumbnailFile.filename : null // Store thumbnail ID if uploaded
-            ]
-        );
+        const newModel = new Model({
+            name: name || '',
+            fileUrl: modelFile.path,
+            cloudinaryId: modelFile.filename,
+            thumbnailUrl: thumbnailFile ? thumbnailFile.path : null,
+            thumbnailCloudinaryId: thumbnailFile ? thumbnailFile.filename : null
+        });
 
-        const newModel = await get('SELECT * FROM models WHERE id = ?', [result.id]);
-        res.status(201).json(newModel);
+        const savedModel = await newModel.save();
+        res.status(201).json(savedModel);
     } catch (err) {
         console.error('Model Upload Error:', err);
-        const errorMessage = (err.http_code === 400 && err.message?.includes('size'))
+        const errorMessage = (err.message && err.message.includes('size'))
             ? 'File size too large for Cloudinary (Max 10MB)'
             : (err.message || 'Upload failed');
         res.status(500).json({ error: errorMessage });
@@ -151,12 +159,14 @@ app.post('/api/contact', async (req, res) => {
             return res.status(400).json({ error: 'All fields are required' });
         }
 
-        const result = await run(
-            'INSERT INTO messages (name, email, message) VALUES (?, ?, ?)',
-            [name, email, message]
-        );
+        const newMessage = new Message({
+            name,
+            email,
+            message
+        });
 
-        res.status(201).json({ success: true, id: result.id });
+        const savedMessage = await newMessage.save();
+        res.status(201).json({ success: true, id: savedMessage._id });
     } catch (err) {
         console.error('Contact Error:', err);
         res.status(500).json({ error: 'Failed to save message' });
@@ -168,13 +178,15 @@ app.post('/api/contact', async (req, res) => {
 app.delete('/api/delete/render/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const render = await get('SELECT * FROM renders WHERE id = ?', [id]);
+        const render = await Render.findById(id);
+
         if (!render) return res.status(404).json({ error: 'Render not found' });
 
         if (render.cloudinaryId) {
             await cloudinary.uploader.destroy(render.cloudinaryId);
         }
-        await run('DELETE FROM renders WHERE id = ?', [id]);
+
+        await Render.findByIdAndDelete(id);
         res.json({ success: true, message: 'Render deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -184,7 +196,8 @@ app.delete('/api/delete/render/:id', async (req, res) => {
 app.delete('/api/delete/model/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const model = await get('SELECT * FROM models WHERE id = ?', [id]);
+        const model = await Model.findById(id);
+
         if (!model) return res.status(404).json({ error: 'Model not found' });
 
         if (model.cloudinaryId) {
@@ -196,7 +209,7 @@ app.delete('/api/delete/model/:id', async (req, res) => {
             await cloudinary.uploader.destroy(model.thumbnailCloudinaryId);
         }
 
-        await run('DELETE FROM models WHERE id = ?', [id]);
+        await Model.findByIdAndDelete(id);
         res.json({ success: true, message: 'Model deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -205,7 +218,13 @@ app.delete('/api/delete/model/:id', async (req, res) => {
 
 // Health / Status
 app.get('/api', (req, res) => {
-    res.json({ status: 'Online', message: 'Full Admin API (SQLite) is running' });
+    const mongoStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
+    res.json({
+        status: 'Online',
+        message: 'Full Admin API (MongoDB) is running',
+        mongoDB: mongoStatus,
+        error: startupError ? startupError.message : null
+    });
 });
 
 // Global Error Handler (ensure JSON response on crash)
