@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import '../index.css';
+import Logo from './Logo';
 
 const Navbar = () => {
     const location = useLocation();
@@ -32,9 +33,17 @@ const Navbar = () => {
 
     const handleHomeClick = (e) => {
         setIsMenuOpen(false);
+        // Always scroll to top if we are going to Home, even if currently there
         if (location.pathname === '/') {
             e.preventDefault();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Small timeout to ensure no router conflict
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                // Also remove hash if any
+                if (window.location.hash) {
+                    window.history.pushState("", document.title, window.location.pathname);
+                }
+            }, 10);
         }
     };
 
@@ -52,17 +61,8 @@ const Navbar = () => {
             padding: 0 // Padding moved to container
         }}>
             <div className="nav-container">
-                <Link to="/" onClick={handleHomeClick} style={{ textDecoration: 'none' }}>
-                    <div style={{
-                        fontSize: '1.5rem',
-                        fontWeight: 'bold',
-                        color: 'var(--text-primary)',
-                        fontFamily: 'var(--font-heading)',
-                        textShadow: '0 0 10px var(--accent-red)',
-                        cursor: 'pointer'
-                    }}>
-                        ORCUN KAYHAN
-                    </div>
+                <Link to="/" onClick={handleHomeClick} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', height: '100%' }}>
+                    <Logo height={80} width={80} />
                 </Link>
 
                 {/* Hamburger Icon */}
@@ -82,6 +82,17 @@ const Navbar = () => {
                         }}>Home</span>
                     </Link>
 
+
+                    <div onClick={() => handleNavigation('about')} style={{ cursor: 'pointer' }}>
+                        <span style={{
+                            color: location.pathname === '/' && window.location.hash === '#about' ? 'var(--accent-red)' : 'var(--text-primary)',
+                            fontSize: '1.1rem',
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase',
+                            fontFamily: 'var(--font-heading)'
+                        }}>About</span>
+                    </div>
+
                     <Link to="/3d" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none' }}>
                         <span style={{
                             color: location.pathname === '/3d' ? 'var(--accent-red)' : 'var(--text-primary)',
@@ -92,33 +103,15 @@ const Navbar = () => {
                         }}>Interactive 3D</span>
                     </Link>
 
-                    <span
-                        onClick={() => handleNavigation('about')}
-                        style={{
-                            color: 'var(--text-primary)',
+                    <div onClick={() => handleNavigation('contact')} style={{ cursor: 'pointer' }}>
+                        <span style={{
+                            color: location.pathname === '/contact' ? 'var(--accent-red)' : 'var(--text-primary)',
                             fontSize: '1.1rem',
                             fontWeight: 'bold',
                             textTransform: 'uppercase',
-                            fontFamily: 'var(--font-heading)',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        About
-                    </span>
-
-                    <span
-                        onClick={() => handleNavigation('contact')}
-                        style={{
-                            color: 'var(--text-primary)',
-                            fontSize: '1.1rem',
-                            fontWeight: 'bold',
-                            textTransform: 'uppercase',
-                            fontFamily: 'var(--font-heading)',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Contact
-                    </span>
+                            fontFamily: 'var(--font-heading)'
+                        }}>Contact</span>
+                    </div>
                 </div>
             </div>
         </nav>

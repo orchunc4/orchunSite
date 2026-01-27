@@ -1,7 +1,8 @@
-import React, { useState, Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows, useGLTF, Html, useProgress } from '@react-three/drei';
-import ContactSection from '../components/ContactSection'; // Import ContactSection
+import React, { useState, useEffect, Suspense, useMemo } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
+import { OrbitControls, Environment, ContactShadows, useGLTF, Html, useProgress, Center, Grid } from '@react-three/drei';
+import * as THREE from 'three';
+import ContactSection from '../components/ContactSection';
 import '../index.css';
 
 function Loader() {
@@ -9,43 +10,114 @@ function Loader() {
     return <Html center><span style={{ color: 'white', fontFamily: 'var(--font-heading)' }}>{progress.toFixed(0)} % loaded</span></Html>;
 }
 
-const StudioModel = ({ url, ...props }) => {
-    const { scene } = useGLTF(url);
-    return <primitive object={scene} {...props} />;
+// Helper to manage environment settings using useEffect
+// This prevents layout thrashing/context issues from useFrame while still enforcing settings
+const EnvSettings = ({ intensity, rotation }) => {
+    const { scene } = useThree();
+    useEffect(() => {
+        // Enforce Intensity
+        scene.environmentIntensity = intensity;
+
+        // Enforce Rotation
+        const rotRad = rotation * (Math.PI / 180);
+        if (!scene.environmentRotation) {
+            scene.environmentRotation = new THREE.Euler(0, rotRad, 0);
+        } else {
+            scene.environmentRotation.y = rotRad;
+        }
+
+    }, [scene, intensity, rotation, scene.environment]); // Re-run if environment map updates (e.g. preset change)
+    return null;
 };
 
-const PlaceholderSphere = (props) => (
-    <mesh {...props}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <meshStandardMaterial color="#8b0000" metalness={0.9} roughness={0.1} />
-    </mesh>
-);
+const StudioModel = ({ url, wireframe, ...props }) => {
+    const { scene } = useGLTF(url);
 
-const availableModels = [
-    { id: 1, name: 'Concept Orb', url: '', type: 'placeholder' },
-    { id: 2, name: 'Cyber Skull', url: '', type: 'placeholder' },
-    { id: 3, name: 'Mech Part', url: '', type: 'placeholder' }
-];
+    // Memoize clone to keep it stable but allow recreation if scene changes
+    const clonedScene = useMemo(() => scene.clone(true), [scene]);
+
+    useEffect(() => {
+        clonedScene.traverse((child) => {
+            if (child.isMesh) {
+                // Store original material if not already stored
+                if (!child.userData.originalMaterial) {
+                    child.userData.originalMaterial = child.material;
+                }
+
+                if (wireframe) {
+                    // Create a wireframe material
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0x00bcd4, // Cyan
+                        wireframe: true,
+                        emissive: 0x00bcd4,
+                        emissiveIntensity: 0.5,
+                        roughness: 0.2,
+                        metalness: 0.8
+                    });
+                } else {
+                    // Restore original (cloned to be safe)
+                    child.material = child.userData.originalMaterial.clone();
+                }
+            }
+        });
+    }, [clonedScene, wireframe]);
+
+    return <primitive object={clonedScene} {...props} />;
+};
 
 const ThreeDGallery = () => {
-    const [lightPos, setLightPos] = useState([5, 5, 5]);
-    const [intensity, setIntensity] = useState(1);
-    const [autoRotate, setAutoRotate] = useState(true);
+    // Removed specific intensity state for spotlight, keeping envIntensity
+    const [envIntensity, setEnvIntensity] = useState(1);
+    const [envRotation, setEnvRotation] = useState(0);
+    const [autoRotateSpeed, setAutoRotateSpeed] = useState(2);
     const [envPreset, setEnvPreset] = useState('city');
     const [showControls, setShowControls] = useState(true);
-    const [showAssets, setShowAssets] = useState(true); // New state for mobile assets toggle
-    const [selectedModel, setSelectedModel] = useState(availableModels[0]);
+    const [availableModels, setAvailableModels] = useState([]);
+    const [selectedModel, setSelectedModel] = useState(null);
     const [modelScale, setModelScale] = useState(1);
 
-    React.useEffect(() => {
+    // New Toggles
+    const [wireframeMode, setWireframeMode] = useState(false);
+    const [showGrid, setShowGrid] = useState(true);
+
+    // Fetch models from API
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const res = await fetch('/api/models');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.length > 0) {
+                        const apiModels = data.map((m, i) => ({
+                            id: m._id || i + 100,
+                            name: m.name || 'Unnamed Model',
+                            url: m.fileUrl,
+                            thumbnailUrl: m.thumbnailUrl,
+                            type: 'glb'
+                        }));
+                        setAvailableModels(apiModels);
+                        if (apiModels.length > 0) {
+                            setSelectedModel(apiModels[0]);
+                        }
+                    }
+                }
+            } catch {
+                console.log('API not available or no models found');
+            }
+        };
+        fetchModels();
+    }, []);
+
+    // Handle responsive scaling
+    useEffect(() => {
         const handleResize = () => {
             if (window.innerWidth < 768) {
-                setModelScale(0.6); // Shrink model on mobile
+                setModelScale(0.6);
             } else {
                 setModelScale(1);
             }
         };
-        handleResize(); // Init
+        handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -55,86 +127,192 @@ const ThreeDGallery = () => {
 
             {/* 3D Canvas Container - 100vh */}
             <div style={{ height: '100vh', width: '100%', position: 'relative' }}>
-                <Canvas shadows camera={{ position: [0, 0, 5], fov: 45 }}>
-                    <fog attach="fog" args={['#050505', 5, 15]} />
+                <Canvas shadows camera={{ position: [0, 2, 6], fov: 40 }} gl={{ preserveDrawingBuffer: true }}>
+                    <fog attach="fog" args={['#050505', 5, 20]} />
                     <color attach="background" args={['#050505']} />
+
+                    {/* Separate Suspense for Environment to avoid reloading when Model changes */}
+                    <Suspense fallback={null}>
+                        <Environment preset={envPreset} blur={0.8} />
+                        <EnvSettings intensity={envIntensity} rotation={envRotation} />
+                    </Suspense>
 
                     <Suspense fallback={<Loader />}>
                         <group position={[0, -0.5, 0]} scale={modelScale}>
-                            {selectedModel.type === 'placeholder' ? (
-                                <PlaceholderSphere />
-                            ) : (
-                                <StudioModel url={selectedModel.url} />
-                            )}
+                            <Center top>
+                                {selectedModel && (
+                                    <StudioModel url={selectedModel.url} wireframe={wireframeMode} />
+                                )}
+                            </Center>
                             <ContactShadows resolution={1024} scale={10} blur={2} opacity={0.5} far={10} color="#000000" />
-                        </group>
 
-                        <Environment preset={envPreset} blur={0.8} />
+                            {/* Futuristic Grid Floor */}
+                            {showGrid && (
+                                <Grid
+                                    position={[0, -0.01, 0]}
+                                    args={[10, 10]}
+                                    cellColor="#202020"
+                                    sectionColor="#404040"
+                                    sectionThickness={1}
+                                    cellThickness={0.5}
+                                    fadeDistance={10}
+                                    infiniteGrid
+                                />
+                            )}
+                        </group>
                     </Suspense>
 
-                    <pointLight position={lightPos} intensity={intensity} castShadow />
-                    <OrbitControls autoRotate={autoRotate} makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.75} enableZoom={false} />
+                    {/* Spotlight for Key Light - Fixed Intensity/Position as Fill */}
+                    <spotLight
+                        position={[5, 10, 5]}
+                        angle={0.5}
+                        penumbra={1}
+                        intensity={2}
+                        castShadow
+                        shadow-inputBias={-0.0001}
+                    />
+
+                    <OrbitControls
+                        autoRotate={autoRotateSpeed > 0}
+                        autoRotateSpeed={autoRotateSpeed}
+                        makeDefault
+                        minPolarAngle={0}
+                        maxPolarAngle={Math.PI / 1.75}
+                        enableZoom={true}
+                    />
                 </Canvas>
 
-                {/* Sidebar (Assets) - Uses Responsive Classes */}
-                {/* We toggled visibility via class on mobile, but for simplicity, let's just use the class with conditional rendering/state if needed, 
-              or rely on the media query transforms. 
-              Let's add a button to open assets on mobile if we want to be fancy, but simply stacking is a good start.
-          */}
+                {/* Sidebar (Assets) */}
                 <div className="glass-panel studio-panel-left">
-                    <h3 style={{ margin: '0 0 15px 0', color: 'var(--accent-red)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '10px' }}>
-                        Assets Library
+                    <h3 style={{ margin: '0 0 20px 0', color: 'var(--accent-red)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '15px', letterSpacing: '1px' }}>
+                        ASSETS LIBRARY
                     </h3>
-                    {availableModels.map(model => (
-                        <div
-                            key={model.id}
-                            onClick={() => setSelectedModel(model)}
-                            style={{
-                                padding: '10px',
-                                borderRadius: '5px',
-                                background: selectedModel.id === model.id ? 'var(--accent-red)' : 'rgba(255,255,255,0.05)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px'
-                            }}
-                        >
-                            <div style={{ width: '40px', height: '40px', background: '#000', borderRadius: '3px' }} />
-                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{model.name}</span>
+                    {availableModels.length === 0 ? (
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', fontSize: '0.9rem' }}>
+                            No models uploaded yet.
                         </div>
-                    ))}
-                </div>
-
-                {/* Controls Panel - Uses Responsive Classes */}
-                <div className={`glass-panel studio-panel-right ${showControls ? '' : 'collapsed'}`}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h3 style={{ margin: 0, color: 'var(--accent-red)' }}>Studio Controls</h3>
-                        <button onClick={() => setShowControls(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
-                    </div>
-
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Environment</label>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                            {['city', 'sunset', 'studio', 'night'].map(env => (
-                                <button key={env} className="glass-btn" style={{ flex: '1 0 40%', padding: '5px', fontSize: '0.8rem', borderColor: envPreset === env ? 'var(--accent-cyan)' : 'var(--glass-border)', background: envPreset === env ? 'rgba(0, 188, 212, 0.1)' : 'transparent' }} onClick={() => setEnvPreset(env)}>{env}</button>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {availableModels.map(model => (
+                                <div
+                                    key={model.id}
+                                    onClick={() => setSelectedModel(model)}
+                                    style={{
+                                        padding: '12px',
+                                        borderRadius: '10px',
+                                        background: selectedModel?.id === model.id ? 'var(--accent-red)' : 'rgba(255,255,255,0.03)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '15px',
+                                        border: '1px solid',
+                                        borderColor: selectedModel?.id === model.id ? 'var(--accent-red)' : 'rgba(255,255,255,0.05)',
+                                        boxShadow: selectedModel?.id === model.id ? '0 0 20px rgba(139, 0, 0, 0.3)' : 'none'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (selectedModel?.id !== model.id) {
+                                            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (selectedModel?.id !== model.id) {
+                                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
+                                        }
+                                    }}
+                                >
+                                    <img
+                                        src={model.thumbnailUrl || "/model-thumb.png"}
+                                        alt="Model Thumbnail"
+                                        style={{
+                                            width: '45px',
+                                            height: '45px',
+                                            objectFit: 'cover',
+                                            background: 'rgba(0,0,0,0.3)',
+                                            borderRadius: '6px',
+                                            border: '1px solid rgba(255,255,255,0.1)'
+                                        }}
+                                    />
+                                    <span style={{ fontSize: '0.9rem', fontWeight: '600', letterSpacing: '0.5px' }}>{model.name}</span>
+                                </div>
                             ))}
                         </div>
+                    )}
+                </div>
+
+                {/* Controls Panel */}
+                <div className={`glass-panel studio-panel-right ${showControls ? '' : 'collapsed'}`}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                        <h3 style={{ margin: 0, color: 'var(--accent-red)', letterSpacing: '1px' }}>STUDIO CONTROLS</h3>
+                        <button onClick={() => setShowControls(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.2rem', opacity: 0.6 }}>✕</button>
                     </div>
-                    <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Auto Rotation</label>
-                        <input type="checkbox" checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} style={{ width: '20px', height: '20px', accentColor: 'var(--accent-red)' }} />
+
+                    <div style={{ marginBottom: '25px' }}>
+                        <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', letterSpacing: '1px' }}>VISUAL STYLE</label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                className="glass-btn"
+                                style={{
+                                    flex: 1,
+                                    background: wireframeMode ? 'var(--accent-cyan)' : 'transparent',
+                                    color: wireframeMode ? 'black' : 'white',
+                                    border: wireframeMode ? '1px solid var(--accent-cyan)' : '1px solid rgba(255,255,255,0.1)'
+                                }}
+                                onClick={() => setWireframeMode(!wireframeMode)}
+                            >
+                                WIREFRAME
+                            </button>
+                            <button
+                                className="glass-btn"
+                                style={{
+                                    flex: 1,
+                                    background: showGrid ? 'var(--accent-metal)' : 'transparent',
+                                    border: showGrid ? '1px solid var(--accent-metal)' : '1px solid rgba(255,255,255,0.1)'
+                                }}
+                                onClick={() => setShowGrid(!showGrid)}
+                            >
+                                GRID
+                            </button>
+                        </div>
                     </div>
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Light Intensity</label>
-                        <input type="range" min="0" max="5" step="0.1" value={intensity} onChange={(e) => setIntensity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-red)' }} />
+
+                    <div style={{ marginBottom: '25px' }}>
+                        <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', letterSpacing: '1px' }}>ENV INTENSITY: {envIntensity}</label>
+                        <input type="range" min="0" max="8" step="0.1" value={envIntensity} onChange={(e) => setEnvIntensity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-red)', cursor: 'pointer' }} />
                     </div>
+
+                    <div style={{ marginBottom: '25px' }}>
+                        <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', letterSpacing: '1px' }}>ENV ROTATION: {envRotation}°</label>
+                        <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => setEnvRotation(parseFloat(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-red)', cursor: 'pointer' }} />
+                    </div>
+
+                    <div style={{ marginBottom: '25px' }}>
+                        <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', letterSpacing: '1px' }}>ROTATION SPEED: {autoRotateSpeed}</label>
+                        <input type="range" min="0" max="20" step="0.5" value={autoRotateSpeed} onChange={(e) => setAutoRotateSpeed(parseFloat(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-red)', cursor: 'pointer' }} />
+                    </div>
+
                     <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Light Position X/Y/Z</label>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                            <input type="range" min="-10" max="10" step="0.5" value={lightPos[0]} onChange={(e) => setLightPos([parseFloat(e.target.value), lightPos[1], lightPos[2]])} style={{ width: '100%', accentColor: 'var(--accent-metal)' }} />
-                            <input type="range" min="0" max="10" step="0.5" value={lightPos[1]} onChange={(e) => setLightPos([lightPos[0], parseFloat(e.target.value), lightPos[2]])} style={{ width: '100%', accentColor: 'var(--accent-metal)' }} />
-                            <input type="range" min="-10" max="10" step="0.5" value={lightPos[2]} onChange={(e) => setLightPos([lightPos[0], lightPos[1], parseFloat(e.target.value)])} style={{ width: '100%', accentColor: 'var(--accent-metal)' }} />
+                        <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', letterSpacing: '1px' }}>ENVIRONMENT MAP</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            {['city', 'sunset', 'studio', 'night'].map(env => (
+                                <button
+                                    key={env}
+                                    className="glass-btn"
+                                    style={{
+                                        padding: '8px',
+                                        fontSize: '0.75rem',
+                                        borderRadius: '6px',
+                                        borderColor: envPreset === env ? 'var(--accent-red)' : 'rgba(255,255,255,0.1)',
+                                        background: envPreset === env ? 'rgba(139, 0, 0, 0.15)' : 'transparent',
+                                        boxShadow: envPreset === env ? '0 0 10px rgba(139, 0, 0, 0.2)' : 'none'
+                                    }}
+                                    onClick={() => setEnvPreset(env)}
+                                >
+                                    {env.toUpperCase()}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>

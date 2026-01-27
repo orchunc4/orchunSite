@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ParallaxSection from '../components/ParallaxSection';
 import ContactSection from '../components/ContactSection';
 import AboutSection from '../components/AboutSection';
 
-const renderImages = [
+// Fallback static renders (used when API is not available)
+const staticRenders = [
     { src: "/renders/NewLevelSequence2.0021%20copy.jpg", title: "THE BEGINNING", subtitle: "Conceptual environments in Unreal Engine 5" },
     { src: "/renders/NewLevelSequence2.002222%20copy.jpg", title: "ATMOSPHERE", subtitle: "Volumetric lighting and dense fog studies" },
     { src: "/renders/oceanShot_01.0005%20copy.jpg", title: "THE DEEP", subtitle: "Procedural ocean shaders and fluid dynamics" },
@@ -19,9 +20,35 @@ const renderImages = [
 ];
 
 const Home = () => {
+    const [renderImages, setRenderImages] = useState(staticRenders);
+
+    useEffect(() => {
+        const fetchRenders = async () => {
+            try {
+                const res = await fetch('/api/renders');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.length > 0) {
+                        // Map API data to component format
+                        const apiRenders = data.map(r => ({
+                            src: r.imageUrl,
+                            title: r.title || 'UNTITLED',
+                            subtitle: r.subtitle || ''
+                        }));
+                        // Combine: Static renders first, then API renders
+                        setRenderImages([...staticRenders, ...apiRenders]);
+                    }
+                }
+            } catch {
+                console.log("Using static models");
+            }
+        };
+        fetchRenders();
+    }, []);
+
     return (
         <>
-            <div id="home">
+            <div id="home" style={{ position: 'relative' }}>
                 {renderImages.map((item, index) => (
                     <ParallaxSection
                         key={index}

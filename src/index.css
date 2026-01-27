@@ -1,3 +1,6 @@
+/* Load Fonts via Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap');
+
 /* Global Reset & Base Styles */
 :root {
   --bg-dark: #0a0a0a;
@@ -18,8 +21,8 @@
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-blur: 10px;
 
-  --font-heading: 'Orbitron', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --font-heading: 'DM Sans', sans-serif;
+  --font-body: 'Work Sans', sans-serif;
 }
 
 html {
@@ -93,9 +96,6 @@ h6 {
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
-/* Load Fonts via Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Orbitron:wght@400;700;900&display=swap');
-
 #root {
   width: 100%;
   min-height: 100vh;
@@ -109,7 +109,7 @@ h6 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 4rem;
+  padding: 0 4rem;
   width: 100%;
 }
 

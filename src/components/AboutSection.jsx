@@ -45,13 +45,14 @@ const AboutSection = () => {
                     zIndex: 2,
                     maxWidth: '900px',
                     width: '90%',
-                    background: 'rgba(0, 0, 0, 0.3)', // Reduced opacity from 0.65
-                    backdropFilter: 'blur(30px)', // Increased blur
-                    WebkitBackdropFilter: 'blur(30px)',
+                    background: 'rgba(255, 255, 255, 0.03)', // Subtle light background for glass
+                    backdropFilter: 'blur(25px) saturate(180%)', // Richer blur
+                    WebkitBackdropFilter: 'blur(25px) saturate(180%)',
                     padding: '60px',
-                    borderRadius: '4px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                    borderRadius: '16px', // Softer corners
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.8)',
+                    margin: '20px'
                 }}
             >
                 <h2 style={{
@@ -73,13 +74,13 @@ const AboutSection = () => {
                     textAlign: 'justify'
                 }}>
                     <p style={{ marginBottom: '1.5rem' }}>
-                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                        I am a 3D Artist and Digital Designer passionate about creating immersive environments and cinematic experiences. With a strong foundation in Unreal Engine 5 and procedural generation, I specialize in blending photorealism with stylized aesthetics to tell compelling visual stories.
                     </p>
                     <p style={{ marginBottom: '1.5rem' }}>
-                        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+                        My work explores the intersection of technology and art, focusing on dynamic lighting, atmospheric depth, and intricate surface details. Whether it's a calm ocean horizon or a chaotic storm, I strive to capture the emotions of a moment through digital mediums.
                     </p>
                     <p>
-                        Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+                        Currently dealing with real-time rendering, material creation, and virtual production. I am always open to new challenges and collaborations that push the boundaries of what is possible in real-time graphics.
                     </p>
                 </div>
             </motion.div>

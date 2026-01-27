@@ -1,8 +1,10 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import ThreeDGallery from './pages/ThreeDGallery';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/AdminDashboard';
 import './index.css';
 
 import { Canvas } from '@react-three/fiber';
@@ -18,18 +20,34 @@ const StarField = () => (
 
 import ScrollToTop from './components/ScrollToTop';
 
-function App() {
+// Wrapper to conditionally hide Navbar on admin pages
+const AppContent = () => {
+  const location = useLocation();
+  const isAdminPage = location.pathname.startsWith('/admin');
+  const is3DPage = location.pathname === '/3d';
+
   return (
-    <Router>
+    <>
       <ScrollToTop />
-      <StarField />
-      <Navbar />
+      {!isAdminPage && !is3DPage && <StarField />}
+      {!isAdminPage && <Navbar />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/3d" element={<ThreeDGallery />} />
+        <Route path="/admin" element={<AdminLogin />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
       </Routes>
+    </>
+  );
+};
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }
 
 export default App;
+
