@@ -1,6 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const ContactSection = () => {
+    const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+    const [status, setStatus] = useState('idle'); // idle, loading, success, error
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setStatus('loading');
+
+        try {
+            const res = await fetch('/api/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            if (res.ok) {
+                setStatus('success');
+                setFormData({ name: '', email: '', message: '' });
+                setTimeout(() => setStatus('idle'), 3000);
+            } else {
+                setStatus('error');
+            }
+        } catch (err) {
+            console.error(err);
+            setStatus('error');
+        }
+    };
     return (
         <div id="contact" style={{
             position: 'relative',
@@ -53,18 +79,22 @@ const ContactSection = () => {
                     Interested in working together? I'm always looking for new challenges and projects to bring to life.
                 </p>
 
-                <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} onSubmit={(e) => e.preventDefault()}>
+                <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} onSubmit={handleSubmit}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ fontSize: '0.9rem', color: 'var(--text-primary)', letterSpacing: '1px' }}>NAME</label>
-                        <input type="text" style={{
-                            background: 'rgba(0,0,0,0.5)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            padding: '12px',
-                            color: 'white',
-                            borderRadius: '4px',
-                            fontFamily: 'var(--font-body)',
-                            transition: 'border 0.3s ease'
-                        }}
+                        <input type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            required
+                            style={{
+                                background: 'rgba(0,0,0,0.5)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                padding: '12px',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontFamily: 'var(--font-body)',
+                                transition: 'border 0.3s ease'
+                            }}
                             onFocus={(e) => e.target.style.borderColor = 'var(--accent-red)'}
                             onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                         />
@@ -72,15 +102,19 @@ const ContactSection = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ fontSize: '0.9rem', color: 'var(--text-primary)', letterSpacing: '1px' }}>EMAIL</label>
-                        <input type="email" style={{
-                            background: 'rgba(0,0,0,0.5)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            padding: '12px',
-                            color: 'white',
-                            borderRadius: '4px',
-                            fontFamily: 'var(--font-body)',
-                            transition: 'border 0.3s ease'
-                        }}
+                        <input type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            required
+                            style={{
+                                background: 'rgba(0,0,0,0.5)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                padding: '12px',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontFamily: 'var(--font-body)',
+                                transition: 'border 0.3s ease'
+                            }}
                             onFocus={(e) => e.target.style.borderColor = 'var(--accent-red)'}
                             onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                         />
@@ -88,24 +122,31 @@ const ContactSection = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ fontSize: '0.9rem', color: 'var(--text-primary)', letterSpacing: '1px' }}>MESSAGE</label>
-                        <textarea rows="5" style={{
-                            background: 'rgba(0,0,0,0.5)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            padding: '12px',
-                            color: 'white',
-                            borderRadius: '4px',
-                            fontFamily: 'var(--font-body)',
-                            transition: 'border 0.3s ease',
-                            resize: 'vertical'
-                        }}
+                        <textarea rows="5"
+                            value={formData.message}
+                            onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                            required
+                            style={{
+                                background: 'rgba(0,0,0,0.5)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                padding: '12px',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontFamily: 'var(--font-body)',
+                                transition: 'border 0.3s ease',
+                                resize: 'vertical'
+                            }}
                             onFocus={(e) => e.target.style.borderColor = 'var(--accent-red)'}
                             onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                         ></textarea>
                     </div>
 
-                    <button className="glass-btn" style={{ marginTop: '10px', width: '100%' }}>
-                        Send Message
+                    <button className="glass-btn" style={{ marginTop: '10px', width: '100%', opacity: status === 'loading' ? 0.7 : 1 }} disabled={status === 'loading'}>
+                        {status === 'loading' ? 'Sending...' : 'Send Message'}
                     </button>
+
+                    {status === 'success' && <p style={{ color: '#4caf50', textAlign: 'center' }}>Message sent successfully!</p>}
+                    {status === 'error' && <p style={{ color: '#f44336', textAlign: 'center' }}>Failed to send message. Try again.</p>}
                 </form>
 
                 <div style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>

@@ -142,6 +142,27 @@ app.post('/api/upload/model', upload.fields([{ name: 'modelFile', maxCount: 1 },
     }
 });
 
+// --- CONTACT ROUTE ---
+
+app.post('/api/contact', async (req, res) => {
+    try {
+        const { name, email, message } = req.body;
+        if (!name || !email || !message) {
+            return res.status(400).json({ error: 'All fields are required' });
+        }
+
+        const result = await run(
+            'INSERT INTO messages (name, email, message) VALUES (?, ?, ?)',
+            [name, email, message]
+        );
+
+        res.status(201).json({ success: true, id: result.id });
+    } catch (err) {
+        console.error('Contact Error:', err);
+        res.status(500).json({ error: 'Failed to save message' });
+    }
+});
+
 // --- DELETE ROUTES ---
 
 app.delete('/api/delete/render/:id', async (req, res) => {

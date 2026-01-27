@@ -37,6 +37,16 @@ function initializeTables() {
             type TEXT DEFAULT 'glb',
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
+
+        // Messages table (Contact Form)
+        db.run(`CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            email TEXT,
+            message TEXT,
+            isRead INTEGER DEFAULT 0,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
     });
 }
 
