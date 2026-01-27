@@ -1,18 +1,26 @@
 import { neon } from '@neondatabase/serverless';
-import dotenv from 'dotenv';
 
-dotenv.config();
+// Lazy initialization - create client only when needed
+let sql = null;
 
-// Create Neon SQL client
-const sql = neon(process.env.DATABASE_URL);
+const getSQL = () => {
+    if (!sql) {
+        if (!process.env.DATABASE_URL) {
+            throw new Error('DATABASE_URL environment variable is not set');
+        }
+        sql = neon(process.env.DATABASE_URL);
+    }
+    return sql;
+};
 
 // Initialize tables if they don't exist
 const initializeTables = async () => {
     try {
         console.log('Initializing PostgreSQL tables...');
+        const query = getSQL();
 
         // Renders table
-        await sql`
+        await query`
             CREATE TABLE IF NOT EXISTS renders (
                 id SERIAL PRIMARY KEY,
                 title TEXT DEFAULT '',
@@ -25,7 +33,7 @@ const initializeTables = async () => {
         `;
 
         // Models table
-        await sql`
+        await query`
             CREATE TABLE IF NOT EXISTS models (
                 id SERIAL PRIMARY KEY,
                 name TEXT DEFAULT '',
@@ -39,7 +47,7 @@ const initializeTables = async () => {
         `;
 
         // Messages table
-        await sql`
+        await query`
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -57,5 +65,5 @@ const initializeTables = async () => {
     }
 };
 
-// Export sql client and init function
-export { sql, initializeTables };
+// Export getter function instead of sql directly
+export { getSQL, initializeTables };

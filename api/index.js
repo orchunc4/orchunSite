@@ -1,21 +1,27 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import { sql, initializeTables } from './db.js';
-
-dotenv.config();
+import { getSQL, initializeTables } from './db.js';
 
 const app = express();
 
 // Initialize database tables
 let dbError = null;
-initializeTables().catch(err => {
-    console.error('Database initialization failed:', err.message);
-    dbError = err;
-});
+let dbInitialized = false;
+
+const ensureDB = async () => {
+    if (!dbInitialized) {
+        try {
+            await initializeTables();
+            dbInitialized = true;
+        } catch (err) {
+            dbError = err;
+            throw err;
+        }
+    }
+};
 
 // Middleware
 app.use(cors({
@@ -26,10 +32,6 @@ app.use(cors({
 app.use(express.json());
 
 // Cloudinary Config
-if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-    console.warn('WARNING: Cloudinary credentials are missing in .env file. Uploads will fail.');
-}
-
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -47,7 +49,7 @@ const storage = new CloudinaryStorage({
 });
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 // --- AUTH ROUTES ---
@@ -67,6 +69,8 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/renders', async (req, res) => {
     try {
+        await ensureDB();
+        const sql = getSQL();
         const renders = await sql`
             SELECT id, title, subtitle, image_url as "imageUrl", cloudinary_id as "cloudinaryId", 
                    sort_order as "order", created_at as "createdAt"
@@ -82,6 +86,8 @@ app.get('/api/renders', async (req, res) => {
 
 app.get('/api/models', async (req, res) => {
     try {
+        await ensureDB();
+        const sql = getSQL();
         const models = await sql`
             SELECT id, name, file_url as "fileUrl", cloudinary_id as "cloudinaryId", type,
                    thumbnail_url as "thumbnailUrl", thumbnail_cloudinary_id as "thumbnailCloudinaryId",
@@ -99,11 +105,11 @@ app.get('/api/models', async (req, res) => {
 // --- UPLOAD ROUTES ---
 
 app.post('/api/upload/render', upload.single('image'), async (req, res) => {
-    console.log('UPLOAD RENDER ATTEMPT:', { body: req.body, file: req.file ? req.file.filename : 'MISSING' });
     try {
+        await ensureDB();
+        const sql = getSQL();
         const { title, subtitle } = req.body;
         if (!req.file) {
-            console.warn('Upload failed: No file in request');
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
@@ -116,20 +122,17 @@ app.post('/api/upload/render', upload.single('image'), async (req, res) => {
         res.status(201).json(result[0]);
     } catch (err) {
         console.error('Render Upload Error:', err);
-        const errorMessage = (err.message && err.message.includes('size'))
-            ? 'File size too large for Cloudinary (Max 10MB)'
-            : (err.message || 'Upload failed');
-        res.status(500).json({ error: errorMessage });
+        res.status(500).json({ error: err.message || 'Upload failed' });
     }
 });
 
 app.post('/api/upload/model', upload.fields([{ name: 'modelFile', maxCount: 1 }, { name: 'thumbnailFile', maxCount: 1 }]), async (req, res) => {
-    console.log('UPLOAD MODEL ATTEMPT:', { body: req.body, files: req.files ? Object.keys(req.files) : 'NONE' });
     try {
+        await ensureDB();
+        const sql = getSQL();
         const { name } = req.body;
 
         if (!req.files || !req.files['modelFile']) {
-            console.warn('Upload failed: No model file in request');
             return res.status(400).json({ error: 'No model file uploaded' });
         }
 
@@ -153,10 +156,7 @@ app.post('/api/upload/model', upload.fields([{ name: 'modelFile', maxCount: 1 },
         res.status(201).json(result[0]);
     } catch (err) {
         console.error('Model Upload Error:', err);
-        const errorMessage = (err.message && err.message.includes('size'))
-            ? 'File size too large for Cloudinary (Max 10MB)'
-            : (err.message || 'Upload failed');
-        res.status(500).json({ error: errorMessage });
+        res.status(500).json({ error: err.message || 'Upload failed' });
     }
 });
 
@@ -164,6 +164,8 @@ app.post('/api/upload/model', upload.fields([{ name: 'modelFile', maxCount: 1 },
 
 app.post('/api/contact', async (req, res) => {
     try {
+        await ensureDB();
+        const sql = getSQL();
         const { name, email, message } = req.body;
         if (!name || !email || !message) {
             return res.status(400).json({ error: 'All fields are required' });
@@ -186,6 +188,8 @@ app.post('/api/contact', async (req, res) => {
 
 app.delete('/api/delete/render/:id', async (req, res) => {
     try {
+        await ensureDB();
+        const sql = getSQL();
         const { id } = req.params;
 
         const renders = await sql`SELECT cloudinary_id FROM renders WHERE id = ${id}`;
@@ -207,6 +211,8 @@ app.delete('/api/delete/render/:id', async (req, res) => {
 
 app.delete('/api/delete/model/:id', async (req, res) => {
     try {
+        await ensureDB();
+        const sql = getSQL();
         const { id } = req.params;
 
         const models = await sql`SELECT cloudinary_id, thumbnail_cloudinary_id FROM models WHERE id = ${id}`;
@@ -232,18 +238,21 @@ app.delete('/api/delete/model/:id', async (req, res) => {
 // Health / Status
 app.get('/api', async (req, res) => {
     let dbStatus = 'Unknown';
+    let errorMsg = null;
     try {
+        const sql = getSQL();
         await sql`SELECT 1`;
         dbStatus = 'Connected';
     } catch (e) {
         dbStatus = 'Disconnected';
+        errorMsg = e.message;
     }
 
     res.json({
         status: 'Online',
         message: 'Full Admin API (NeonDB PostgreSQL) is running',
         database: dbStatus,
-        error: dbError ? dbError.message : null
+        error: errorMsg
     });
 });
 
@@ -257,7 +266,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Only start server locally (not on Vercel)
+// Only start server locally
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 5001;
     app.listen(PORT, () => {
