@@ -257,9 +257,12 @@ app.use((err, req, res, next) => {
     });
 });
 
-const PORT = process.env.PORT || 5001;
-const server = app.listen(PORT, () => {
-    console.log(`Backend server listening on port ${PORT}`);
-});
+// Only start server locally (not on Vercel)
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 5001;
+    app.listen(PORT, () => {
+        console.log(`Backend server listening on port ${PORT}`);
+    });
+}
 
 export default app;
