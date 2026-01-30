@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
+import Gallery from './pages/Gallery';
 import ThreeDGallery from './pages/ThreeDGallery';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
@@ -26,13 +27,16 @@ const AppContent = () => {
   const isAdminPage = location.pathname.startsWith('/admin');
   const is3DPage = location.pathname === '/3d';
 
+  const isGalleryPage = location.pathname === '/gallery';
+
   return (
     <>
       <ScrollToTop />
-      {!isAdminPage && !is3DPage && <StarField />}
+      {!isAdminPage && !is3DPage && !isGalleryPage && <StarField />}
       {!isAdminPage && <Navbar />}
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/gallery" element={<Gallery />} />
         <Route path="/3d" element={<ThreeDGallery />} />
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

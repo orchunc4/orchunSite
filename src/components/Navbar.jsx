@@ -93,6 +93,16 @@ const Navbar = () => {
                         }}>About</span>
                     </div>
 
+                    <Link to="/gallery" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                        <span style={{
+                            color: location.pathname === '/gallery' ? 'var(--accent-red)' : 'var(--text-primary)',
+                            fontSize: '1.1rem',
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase',
+                            fontFamily: 'var(--font-heading)'
+                        }}>Gallery</span>
+                    </Link>
+
                     <Link to="/3d" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none' }}>
                         <span style={{
                             color: location.pathname === '/3d' ? 'var(--accent-red)' : 'var(--text-primary)',
