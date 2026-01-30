@@ -1,17 +1,30 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import '../index.css';
 
 const ParallaxSection = ({ image, title, subtitle, align = 'center' }) => {
     const ref = useRef(null);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Detect mobile device
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     const { scrollYProgress } = useScroll({
         target: ref,
         offset: ["start end", "end start"]
     });
 
-    const y = useTransform(scrollYProgress, [0, 1], ["-20%", "20%"]);
+    // Disable parallax on mobile for better performance
+    const y = useTransform(scrollYProgress, [0, 1], isMobile ? ["0%", "0%"] : ["-20%", "20%"]);
     const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
-    const textY = useTransform(scrollYProgress, [0, 1], ["50%", "-50%"]);
+    const textY = useTransform(scrollYProgress, [0, 1], isMobile ? ["0%", "0%"] : ["50%", "-50%"]);
 
     const alignmentStyles = {
         left: { alignItems: 'flex-start', textAlign: 'left', paddingLeft: '10%' },
@@ -64,9 +77,9 @@ const ParallaxSection = ({ image, title, subtitle, align = 'center' }) => {
             >
                 {/* Dark Blurry Text Container */}
                 <div style={{
-                    background: 'rgba(0, 0, 0, 0.7)',
-                    backdropFilter: 'blur(15px)',
-                    WebkitBackdropFilter: 'blur(15px)',
+                    background: isMobile ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: isMobile ? 'blur(5px)' : 'blur(15px)',
+                    WebkitBackdropFilter: isMobile ? 'blur(5px)' : 'blur(15px)',
                     padding: 'clamp(20px, 4vw, 40px)', // Responsive padding
                     borderRadius: '2px',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
