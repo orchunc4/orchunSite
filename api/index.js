@@ -160,6 +160,62 @@ app.post('/api/upload/model', upload.fields([{ name: 'modelFile', maxCount: 1 },
     }
 });
 
+// --- SAVE ROUTES (for client-side Cloudinary uploads) ---
+
+app.post('/api/save/render', async (req, res) => {
+    try {
+        await ensureDB();
+        const sql = getSQL();
+        const { title, subtitle, imageUrl, cloudinaryId } = req.body;
+
+        if (!imageUrl || !cloudinaryId) {
+            return res.status(400).json({ error: 'imageUrl and cloudinaryId are required' });
+        }
+
+        const result = await sql`
+            INSERT INTO renders (title, subtitle, image_url, cloudinary_id)
+            VALUES (${title || ''}, ${subtitle || ''}, ${imageUrl}, ${cloudinaryId})
+            RETURNING id, title, subtitle, image_url as "imageUrl", cloudinary_id as "cloudinaryId", created_at as "createdAt"
+        `;
+
+        res.status(201).json(result[0]);
+    } catch (err) {
+        console.error('Save Render Error:', err);
+        res.status(500).json({ error: err.message || 'Save failed' });
+    }
+});
+
+app.post('/api/save/model', async (req, res) => {
+    try {
+        await ensureDB();
+        const sql = getSQL();
+        const { name, fileUrl, cloudinaryId, thumbnailUrl, thumbnailCloudinaryId } = req.body;
+
+        if (!fileUrl || !cloudinaryId) {
+            return res.status(400).json({ error: 'fileUrl and cloudinaryId are required' });
+        }
+
+        const result = await sql`
+            INSERT INTO models (name, file_url, cloudinary_id, thumbnail_url, thumbnail_cloudinary_id)
+            VALUES (
+                ${name || ''}, 
+                ${fileUrl}, 
+                ${cloudinaryId},
+                ${thumbnailUrl || null},
+                ${thumbnailCloudinaryId || null}
+            )
+            RETURNING id, name, file_url as "fileUrl", cloudinary_id as "cloudinaryId", 
+                      thumbnail_url as "thumbnailUrl", thumbnail_cloudinary_id as "thumbnailCloudinaryId",
+                      created_at as "createdAt"
+        `;
+
+        res.status(201).json(result[0]);
+    } catch (err) {
+        console.error('Save Model Error:', err);
+        res.status(500).json({ error: err.message || 'Save failed' });
+    }
+});
+
 // --- CONTACT ROUTE ---
 
 app.post('/api/contact', async (req, res) => {

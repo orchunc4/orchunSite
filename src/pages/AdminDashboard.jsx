@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { uploadToCloudinary } from '../utils/cloudinaryUpload';
 import '../index.css';
 
 const AdminDashboard = () => {
@@ -59,23 +60,25 @@ const AdminDashboard = () => {
         e.preventDefault();
         if (!renderForm.image) return alert('Please select an image');
 
-        // 10MB Limit Check
-        if (renderForm.image.size > 10 * 1024 * 1024) {
-            return alert('File too large! Max size is 10MB for Cloudinary free plan.');
-        }
-
         setLoading(true);
-        setUploadStatus('Uploading...');
-
-        const formData = new FormData();
-        formData.append('image', renderForm.image);
-        formData.append('title', renderForm.title);
-        formData.append('subtitle', renderForm.subtitle);
+        setUploadStatus('Uploading to Cloudinary...');
 
         try {
-            const res = await fetch('/api/upload/render', {
+            // Step 1: Upload to Cloudinary directly
+            const { url, publicId } = await uploadToCloudinary(renderForm.image, 'image');
+
+            setUploadStatus('Saving to database...');
+
+            // Step 2: Save URL to backend
+            const res = await fetch('/api/save/render', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: renderForm.title,
+                    subtitle: renderForm.subtitle,
+                    imageUrl: url,
+                    cloudinaryId: publicId
+                })
             });
 
             if (res.ok) {
@@ -84,7 +87,7 @@ const AdminDashboard = () => {
                 fetchRenders();
             } else {
                 const data = await res.json();
-                setUploadStatus('Upload failed: ' + (data.error || 'Unknown error'));
+                setUploadStatus('Save failed: ' + (data.error || 'Unknown error'));
             }
         } catch (err) {
             setUploadStatus('Error: ' + err.message);
@@ -96,25 +99,33 @@ const AdminDashboard = () => {
         e.preventDefault();
         if (!modelForm.file) return alert('Please select a file');
 
-        // 10MB Limit Check
-        if (modelForm.file.size > 10 * 1024 * 1024) {
-            return alert('Model File too large! Max size is 10MB.');
-        }
-
         setLoading(true);
-        setUploadStatus('Uploading 3D Model...');
-
-        const formData = new FormData();
-        formData.append('modelFile', modelForm.file);
-        formData.append('name', modelForm.name);
-        if (modelForm.thumbnail) {
-            formData.append('thumbnailFile', modelForm.thumbnail);
-        }
+        setUploadStatus('Uploading 3D Model to Cloudinary...');
 
         try {
-            const res = await fetch('/api/upload/model', {
+            // Step 1: Upload model file to Cloudinary (as raw file)
+            const modelResult = await uploadToCloudinary(modelForm.file, 'raw');
+
+            // Step 2: Upload thumbnail if provided
+            let thumbnailResult = null;
+            if (modelForm.thumbnail) {
+                setUploadStatus('Uploading thumbnail...');
+                thumbnailResult = await uploadToCloudinary(modelForm.thumbnail, 'image');
+            }
+
+            setUploadStatus('Saving to database...');
+
+            // Step 3: Save URLs to backend
+            const res = await fetch('/api/save/model', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: modelForm.name,
+                    fileUrl: modelResult.url,
+                    cloudinaryId: modelResult.publicId,
+                    thumbnailUrl: thumbnailResult?.url || null,
+                    thumbnailCloudinaryId: thumbnailResult?.publicId || null
+                })
             });
 
             if (res.ok) {
@@ -123,7 +134,7 @@ const AdminDashboard = () => {
                 fetchModels();
             } else {
                 const data = await res.json();
-                setUploadStatus('Upload failed: ' + (data.error || 'Unknown error'));
+                setUploadStatus('Save failed: ' + (data.error || 'Unknown error'));
             }
         } catch (err) {
             setUploadStatus('Error: ' + err.message);
