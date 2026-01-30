@@ -7,6 +7,12 @@ function Loader() {
     return <Html center><span style={{ color: 'white' }}>{progress} % loaded</span></Html>;
 }
 
+// Separate component that always calls useGLTF (fixes conditional hook error)
+const LoadedModel = ({ url }) => {
+    const { scene } = useGLTF(url);
+    return <primitive object={scene} />;
+};
+
 // Wrapper to load a model if a URL is provided, otherwise show placeholder
 const Model = ({ url }) => {
     if (!url) {
@@ -19,8 +25,7 @@ const Model = ({ url }) => {
         );
     }
 
-    const { scene } = useGLTF(url);
-    return <primitive object={scene} />;
+    return <LoadedModel url={url} />;
 };
 
 const ModelViewer = ({ modelUrl, autoRotate = true }) => {
