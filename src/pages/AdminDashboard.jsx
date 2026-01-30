@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { uploadToCloudinary } from '../utils/cloudinaryUpload';
 import '../index.css';
 
+// v2.0 - Client-side Cloudinary Upload
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('renders');
