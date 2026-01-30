@@ -77,13 +77,18 @@ const ParallaxSection = ({ image, title, subtitle, align = 'center' }) => {
             >
                 {/* Dark Blurry Text Container */}
                 <div style={{
-                    background: isMobile ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.7)',
-                    backdropFilter: isMobile ? 'blur(5px)' : 'blur(15px)',
-                    WebkitBackdropFilter: isMobile ? 'blur(5px)' : 'blur(15px)',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: 'blur(15px)',
+                    WebkitBackdropFilter: 'blur(15px)',
                     padding: 'clamp(20px, 4vw, 40px)', // Responsive padding
                     borderRadius: '2px',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                    ...(isMobile && {
+                        background: 'rgba(0, 0, 0, 0.85)',
+                        backdropFilter: 'blur(5px)',
+                        WebkitBackdropFilter: 'blur(5px)'
+                    })
                 }}>
                     {title && (
                         <h2 style={{
